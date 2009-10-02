@@ -1,0 +1,17 @@
+<?php
+// $Id$
+
+/**
+ * Implementation of hook_install().
+ */
+function termhide_install() {
+
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+
+function termhide_uninstall() {
+  db_query("DELETE FROM {variable} WHERE name LIKE '%termhide_'");
+}
