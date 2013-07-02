@@ -1,0 +1,111 @@
+<?php
+// $Id$
+/**
+ * @file
+ * Allows admin to hide/display selected terms/vocabularies
+ */
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function termhide_form_alter(&$form, $form_state, $form_id) {
+  $perm = user_access('hide terms');
+
+  if ($form_id == 'taxonomy_form_term') {
+    $tid = $form['tid']['#value'];
+    $vocab_hidden = _termhide_fetch_value('vocabulary', _termhide_get_vid($tid));
+    $description = ($vocab_hidden) ? t('Term will be hidden from displaying in nodes. To un-hide term, its vocabulary must first be un-hidden.') : t('Hide term from displaying in nodes.');
+    if (!$perm) {
+      $description .= t(' Note: You do not have permission to change this setting.');
+    }
+    $form['advanced']['termhide'] = array('#type' => 'checkbox',
+      '#title' => t('Hide this term'),
+      '#default_value' => $vocab_hidden || _termhide_fetch_value('term', $tid),
+      '#return_value' => 1,
+      '#disabled' => !$perm || $vocab_hidden,
+      '#description' => $description,
+    );
+    // prevent new element from sinking below submit buttons
+    $form['submit']['#weight'] = 1;
+    $form['delete']['#weight'] = 1;
+  }
+
+  if ($form_id == 'taxonomy_form_vocabulary') {
+    $vid = $form['vid']['#value'];
+    $form['settings']['termhide'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Hide all terms in this vocabulary'),
+      '#default_value' => _termhide_fetch_value('vocabulary', $vid),
+      '#return_value' => 1,
+      '#disabled' => !$perm,
+      '#description' => ($perm) ? t('Hide all terms in this vocabulary from displaying in nodes.') : t('You do not have permission to change this setting.'),
+    );
+    // prevent new element from sinking below submit buttons
+    $form['submit']['#weight'] = 1;
+    $form['delete']['#weight'] = 1;
+  }
+}
+
+/**
+ * Implementation of hook_taxonomy().
+ */
+function termhide_taxonomy($op, $type, $array) {
+  $index = ($type=='vocabulary') ? 'vid' : 'tid';
+  $var = 'termhide_' . $index . '_' . $array[$index];
+  if (($op == 'insert' || $op == 'update') && user_access('hide terms')) {
+    variable_set($var, $array['termhide']);
+  }
+  if ($op == 'delete') {
+    variable_del($var);
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function termhide_perm() {
+  return array('hide terms');
+}
+
+
+/**
+ * Implementation of hook_link_alter().
+ */
+function termhide_link_alter(&$links, $node) {
+  // get rid of taxonomy term links
+  // that are hidden
+  foreach ($links as $k => $v) {
+    if (strstr($k, 'taxonomy_term_')) {
+      $tid = str_replace('taxonomy_term_', '', $k);
+      if (_termhide_is_hidden($tid)) {
+        unset($links[$k]);
+      }
+    }
+  }
+}
+
+/**
+ * Determines if term (or the parent vocabulary (and thus the term)) is hidden.
+ */
+function _termhide_is_hidden($tid) {
+  $vid = _termhide_get_vid($tid);
+  if (_termhide_fetch_value('vocabulary', $vid) || _termhide_fetch_value('term', $tid)) {
+    return TRUE;
+  }
+}
+
+/**
+ * Fetches value from term/vocab hidden table.
+ */
+function _termhide_fetch_value($type, $id) {
+  $index = ($type=='vocabulary') ? 'vid' : 'tid';
+  $var = 'termhide_' . $index . '_' . $id;
+  return variable_get($var, 0);
+}
+
+/**
+ * Returns $vid which is parent vocabulary of argument $tid.
+ */
+function _termhide_get_vid($tid) {
+  return taxonomy_get_term($tid)->vid;
+}
