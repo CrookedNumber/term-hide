@@ -1,5 +1,0 @@
-; $Id$
-name = Term Hide
-description = Allows admin to hide/display selected terms/vocabularies.
-dependencies[] = taxonomy
-core = 6.x
